@@ -14,8 +14,8 @@ jobs:
         run: python python/scraper.py
       - name: Commit and push if there's a change
         run: |
-          git config --global user.email "you@example.com"
-          git config --global user.name "Your Name"
+          git config --global user.email "alnasserayham@gmail.com"
+          git config --global user.name "khammy"
           git add data/leaderboardstats.csv
           git commit -m "Update leaderboard stats" || echo "No changes to commit"
           git push
