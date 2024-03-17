@@ -1,29 +1,21 @@
-name: Run Python Script Daily
-
 on:
   schedule:
-    # Runs at 11:00 CST (UTC-6) every day
-    # GitHub Actions uses UTC times, so 11:00 CST is 17:00 UTC
-    - cron:  '0 17 * * *'
-
+    - cron: '0 17 * * *' # Runs at 17:00 UTC every day
 jobs:
-  run_script:
+  scrape:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-
-    - name: Set up Python 3.x
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        # If your script requires any dependencies, install them here
-        # pip install -r requirements.txt
-
-    - name: Run the script
-      run: python ./python/scraper.py
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: Run scraper
+        run: python python/scraper.py
+      - name: Commit and push if there's a change
+        run: |
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git add data/leaderboardstats.csv
+          git commit -m "Update leaderboard stats" || echo "No changes to commit"
+          git push
