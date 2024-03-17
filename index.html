@@ -163,7 +163,7 @@
                 const score = (100 * (1 - Math.exp(-f0 / d.time))) * Math.pow(f1, dt);
                 playerScores[d.name] += score;
                 playerGames[d.name] += 1;
-                playerTimeSpent[d.name] += time;
+                playerTimeSpent[d.name] += d.time;
             }
         });
 
