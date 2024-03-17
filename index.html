@@ -30,7 +30,12 @@
         <tr>
             <th>Name</th>
             <th>Score</th>
-            <th>Number Rank 1 Finishes</th>
+            <th># Rank 1</th>
+            <th># Rank 2</th>
+            <th># Rank 3</th>
+            <th># games</th>
+            <th>avg completion time</th>
+            <th>total time spent</th>
         </tr>
     </thead>
     <tbody>
@@ -129,22 +134,36 @@
         const f0 = 50; // Optimal score
         const f1 = 0.99; // Decay factor
         const playerScores = {};
+        const playerGames = {};
+        const playerTimeSpent = {};
         const playerRank1Finishes = {};
+        const playerRank2Finishes = {};
+        const playerRank3Finishes = {};
 
         data.forEach(d => {
             if (!playerScores[d.name]) {
                 playerScores[d.name] = 0;
                 playerRank1Finishes[d.name] = 0;
+                playerRank2Finishes[d.name] = 0;
+                playerRank3Finishes[d.name] = 0;
             }
 
             if (d.rank === "1") {
                 playerRank1Finishes[d.name] += 1;
+            }
+            if (d.rank === "2") {
+                playerRank2Finishes[d.name] += 1;
+            }
+            if (d.rank === "3") {
+                playerRank3Finishes[d.name] += 1;
             }
 
             if (d.time > 0) { // Ensure time is not 0
                 const dt = (today - d.date) / (1000 * 60 * 60 * 24); // days ago
                 const score = (100 * (1 - Math.exp(-f0 / d.time))) * Math.pow(f1, dt);
                 playerScores[d.name] += score;
+                playerGames[d.name] += 1;
+                playerTimeSpent[d.name] += time;
             }
         });
 
@@ -155,6 +174,11 @@
             row.append("td").text(name);
             row.append("td").text(playerScores[name].toFixed(2));
             row.append("td").text(playerRank1Finishes[name]);
+            row.append("td").text(playerRank2Finishes[name]);
+            row.append("td").text(playerRank3Finishes[name]);
+            row.append("td").text(playerGames[name]);
+            row.append("td").text(playerTimeSpent[name] / playerGames[name]);
+            row.append("td").text(playerTimeSpent[name]);
         });
     });
     });
