@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard Stats</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+</head>
+<body>
+    <canvas id="lineChart" width="400" height="400"></canvas>
+    <div id="rankTable"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('data/leaderboardstats.csv')
+                .then(response => response.text())
+                .then(csvString => {
+                    const results = Papa.parse(csvString, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                    }).data;
+                    processData(results);
+                });
+        });
+
+        function processData(data) {
+            const scores = data
+                .filter(entry => entry.rank !== -1 && entry.time !== '00:00') // Exclude entries with rank -1 or time 00:00
+                .map(entry => {
+                    const { date, name, rank, time } = entry;
+
+                    const timeParts = time.split(':');
+                    const totalTime = parseInt(timeParts[0], 10) * 60 + parseInt(timeParts[1], 10);
+                    const today = new Date();
+                    const entryDate = new Date(date);
+                    const daysAgo = (today - entryDate) / (1000 * 3600 * 24);
+                    const f0 = 50;
+                    const f1 = 0.99;
+                    const score = (100 * (1 - Math.exp(-f0 / totalTime))) * Math.pow(f1, daysAgo);
+                    return { date, name, rank, score, totalTime };
+                });
+
+            renderChart(scores);
+            renderTable(scores);
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('lineChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(entry => entry.date),
+                    datasets: [{
+                        label: 'Player Score',
+                        data: data.map(entry => entry.score),
+                        fill: false,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {}
+            });
+        }
+
+        function renderTable(data) {
+            const rankCounts = data.reduce((acc, { name, rank }) => {
+                if (rank === 1) {
+                    acc[name] = (acc[name] || 0) + 1;
+                }
+                return acc;
+            }, {});
+
+            let tableHtml = '<table><tr><th>Name</th><th>Rank 1 Count</th></tr>';
+            Object.entries(rankCounts).forEach(([name, count]) => {
+                tableHtml += `<tr><td>${name}</td><td>${count}</td></tr>`;
+            });
+            tableHtml += '</table>';
+
+            document.getElementById('rankTable').innerHTML = tableHtml;
+        }
+    </script>
+</body>
+</html>
