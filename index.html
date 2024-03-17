@@ -1,85 +1,163 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leaderboard Stats</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .chart {
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:hover {background-color: #f5f5f5;}
+    </style>
 </head>
 <body>
-    <canvas id="lineChart" width="400" height="400"></canvas>
-    <div id="rankTable"></div>
+<div class="chart"></div>
+<table id="leaderboard">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Score</th>
+            <th>Number Rank 1 Finishes</th>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('data/leaderboardstats.csv')
-                .then(response => response.text())
-                .then(csvString => {
-                    const results = Papa.parse(csvString, {
-                        header: true,
-                        dynamicTyping: true,
-                        skipEmptyLines: true,
-                    }).data;
-                    processData(results);
-                });
+<script>
+    const svg = d3.select(".chart").append("svg").attr("width", 600).attr("height", 400),
+        margin = {top: 20, right: 20, bottom: 30, left: 50},
+        width = +svg.attr("width") - margin.left - margin.right,
+        height = +svg.attr("height") - margin.top - margin.bottom,
+        g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    const parseTime = d3.timeParse("%m/%d/%Y");
+
+    const x = d3.scaleTime().rangeRound([0, width]);
+    const y = d3.scaleLinear().rangeRound([height, 0]);
+
+    const line = d3.line()
+        .x(function(d) { return x(d.date); })
+        .y(function(d) { return y(d.time); });
+
+    d3.csv("data/leaderboardstats.csv").then(function(data) {
+        data.forEach(function(d) {
+            d.date = parseTime(d.date);
+            d.time = +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
         });
 
-        function processData(data) {
-            const scores = data
-                .filter(entry => entry.rank !== -1 && entry.time !== '00:00') // Exclude entries with rank -1 or time 00:00
-                .map(entry => {
-                    const { date, name, rank, time } = entry;
+        x.domain(d3.extent(data, function(d) { return d.date; }));
+        y.domain(d3.extent(data, function(d) { return d.time; }));
 
-                    const timeParts = time.split(':');
-                    const totalTime = parseInt(timeParts[0], 10) * 60 + parseInt(timeParts[1], 10);
-                    const today = new Date();
-                    const entryDate = new Date(date);
-                    const daysAgo = (today - entryDate) / (1000 * 3600 * 24);
-                    const f0 = 50;
-                    const f1 = 0.99;
-                    const score = (100 * (1 - Math.exp(-f0 / totalTime))) * Math.pow(f1, daysAgo);
-                    return { date, name, rank, score, totalTime };
-                });
+        g.append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x))
+            .select(".domain")
+            .remove();
 
-            renderChart(scores);
-            renderTable(scores);
-        }
+        g.append("g")
+            .call(d3.axisLeft(y))
+            .append("text")
+            .attr("fill", "#000")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 6)
+            .attr("dy", "0.71em")
+            .attr("text-anchor", "end")
+            .text("Time (s)");
 
-        function renderChart(data) {
-            const ctx = document.getElementById('lineChart').getContext('2d');
-            const chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map(entry => entry.date),
-                    datasets: [{
-                        label: 'Player Score',
-                        data: data.map(entry => entry.score),
-                        fill: false,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
-                },
-                options: {}
-            });
-        }
+        const names = Array.from(new Set(data.map(d => d.name)));
 
-        function renderTable(data) {
-            const rankCounts = data.reduce((acc, { name, rank }) => {
-                if (rank === 1) {
-                    acc[name] = (acc[name] || 0) + 1;
-                }
-                return acc;
-            }, {});
+        const color = d3.scaleOrdinal(d3.schemeCategory10).domain(names);
 
-            let tableHtml = '<table><tr><th>Name</th><th>Rank 1 Count</th></tr>';
-            Object.entries(rankCounts).forEach(([name, count]) => {
-                tableHtml += `<tr><td>${name}</td><td>${count}</td></tr>`;
-            });
-            tableHtml += '</table>';
+        // Append a legend to the SVG
+        var legend = svg.selectAll(".legend")
+            .data(names)
+            .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
 
-            document.getElementById('rankTable').innerHTML = tableHtml;
-        }
-    </script>
+        // Draw legend colored rectangles
+        legend.append("rect")
+            .attr("x", width + 28) // Adjust position according to your SVG dimensions
+            .attr("width", 18)
+            .attr("height", 18)
+            .style("fill", color);
+
+        // Draw legend text
+        legend.append("text")
+            .attr("x", width + 24) // Adjust position according to your SVG dimensions
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .style("text-anchor", "end")
+            .text(function(d) { return d; });
+
+        names.forEach(function(name) {
+            const playerData = data.filter(d => d.name === name).sort((a, b) => a.date - b.date);
+            g.append("path")
+                .datum(playerData)
+                .attr("fill", "none")
+                .attr("stroke", color(name))
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 1.5)
+                .attr("d", line);
+        });
+
+        d3.csv("data/leaderboardstats.csv").then(function(data) {
+        data.forEach(function(d) {
+            d.date = parseTime(d.date);
+            d.time = d.time === "0" ? 0 : +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
+        });
+
+        // Set up the chart as before...
+
+        // Prepare to calculate scores and populate the table
+        const today = new Date();
+        const f0 = 50; // Optimal score
+        const f1 = 0.99; // Decay factor
+        const playerScores = {};
+        const playerRank1Finishes = {};
+
+        data.forEach(d => {
+            if (!playerScores[d.name]) {
+                playerScores[d.name] = 0;
+                playerRank1Finishes[d.name] = 0;
+            }
+
+            if (d.rank === "1") {
+                playerRank1Finishes[d.name] += 1;
+            }
+
+            if (d.time > 0) { // Ensure time is not 0
+                const dt = (today - d.date) / (1000 * 60 * 60 * 24); // days ago
+                const score = (100 * (1 - Math.exp(-f0 / d.time))) * Math.pow(f1, dt);
+                playerScores[d.name] += score;
+            }
+        });
+
+        // Populate the table
+        const tbody = d3.select("#leaderboard tbody");
+        Object.keys(playerScores).forEach(name => {
+            const row = tbody.append("tr");
+            row.append("td").text(name);
+            row.append("td").text(playerScores[name].toFixed(2));
+            row.append("td").text(playerRank1Finishes[name]);
+        });
+    });
+    });
+</script>
 </body>
 </html>
