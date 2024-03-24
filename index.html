@@ -21,10 +21,19 @@
             background-color: #f2f2f2;
         }
         tr:hover {background-color: #f5f5f5;}
+        #outliers {
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
 <div class="chart"></div>
+<div id="outliers">
+    <p>Outliers (excluded from plot):</p>
+    <ul>
+        <!-- Outliers will be dynamically listed here -->
+    </ul>
+</div>
 <table id="leaderboard">
     <thead>
         <tr>
@@ -33,6 +42,7 @@
             <th># Rank 1</th>
             <th># Rank 2</th>
             <th># Rank 3</th>
+            <th># Rank 4</th> <!-- Added Rank 4 column -->
             <th># games</th>
             <th>avg completion time</th>
             <th>total time spent</th>
@@ -56,16 +66,19 @@
 
     const line = d3.line()
         .x(function(d) { return x(d.date); })
-        .y(function(d) { return y(d.time); });
+        .y(function(d) { return y(d.time_seconds); }); // Use time in seconds for plotting
 
     d3.csv("data/leaderboardstats.csv").then(function(data) {
         data.forEach(function(d) {
             d.date = parseTime(d.date);
-            d.time = +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
+            d.time_seconds = +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
         });
 
-        x.domain(d3.extent(data, function(d) { return d.date; }));
-        y.domain(d3.extent(data, function(d) { return d.time; }));
+        // Filter out outliers based on the time in seconds
+        const filteredData = data.filter(d => d.time_seconds >= 0 && d.time_seconds <= 126.125);
+
+        x.domain(d3.extent(filteredData, function(d) { return d.date; }));
+        y.domain([0, d3.max(filteredData, function(d) { return d.time_seconds; })]); // Adjust y-domain based on filtered data
 
         g.append("g")
             .attr("transform", "translate(0," + height + ")")
@@ -97,7 +110,6 @@
         // Draw legend colored rectangles
         legend.append("rect")
             .attr("x", width + 28) // Adjust position according to your SVG dimensions
-            .attr("width", 18)
             .attr("height", 18)
             .style("fill", color);
 
@@ -110,7 +122,7 @@
             .text(function(d) { return d; });
 
         names.forEach(function(name) {
-            const playerData = data.filter(d => d.name === name).sort((a, b) => a.date - b.date);
+            const playerData = filteredData.filter(d => d.name === name).sort((a, b) => a.date - b.date);
             g.append("path")
                 .datum(playerData)
                 .attr("fill", "none")
@@ -121,24 +133,16 @@
                 .attr("d", line);
         });
 
-        d3.csv("data/leaderboardstats.csv").then(function(data) {
-        data.forEach(function(d) {
-            d.date = parseTime(d.date);
-            d.time = d.time === "0" ? 0 : +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
+        // Identify outliers for noting next to the chart
+        const outliers = data.filter(d => d.time_seconds < 0 || d.time_seconds > 126.125);
+        outliers.forEach(function(outlier) {
+            d3.select("#outliers ul").append("li").text(outlier.name + ": " + outlier.time);
         });
 
-        // Set up the chart as before...
-
-        // Prepare to calculate scores and populate the table
-        const today = new Date();
-        const f0 = 50; // Optimal score
-        const f1 = 0.99; // Decay factor
-        const playerScores = {};
-        const playerGames = {};
-        const playerTimeSpent = {};
-        const playerRank1Finishes = {};
-        const playerRank2Finishes = {};
-        const playerRank3Finishes = {};
+        // Additional logic to handle the table and include Rank 4
+        const playerScores = {}, playerGames = {}, playerTimeSpent = {},
+              playerRank1Finishes = {}, playerRank2Finishes = {}, 
+              playerRank3Finishes = {}, playerRank4Finishes = {};
 
         data.forEach(d => {
             if (!playerScores[d.name]) {
@@ -146,30 +150,24 @@
                 playerRank1Finishes[d.name] = 0;
                 playerRank2Finishes[d.name] = 0;
                 playerRank3Finishes[d.name] = 0;
+                playerRank4Finishes[d.name] = 0; // Initialize Rank 4
                 playerGames[d.name] = 0;
                 playerTimeSpent[d.name] = 0;
             }
 
-            if (d.rank === "1") {
-                playerRank1Finishes[d.name] += 1;
-            }
-            if (d.rank === "2") {
-                playerRank2Finishes[d.name] += 1;
-            }
-            if (d.rank === "3") {
-                playerRank3Finishes[d.name] += 1;
-            }
+            if (d.rank === 1) playerRank1Finishes[d.name] += 1;
+            if (d.rank === 2) playerRank2Finishes[d.name] += 1;
+            if (d.rank === 3) playerRank3Finishes[d.name] += 1;
+            if (d.rank === 4) playerRank4Finishes[d.name] += 1; // Add Rank 4 data
 
-            if (d.time > 0) { // Ensure time is not 0
-                const dt = (today - d.date) / (1000 * 60 * 60 * 24); // days ago
-                const score = (100 * (1 - Math.exp(-f0 / d.time))) * Math.pow(f1, dt);
-                playerScores[d.name] += score;
-                playerGames[d.name] += 1;
-                playerTimeSpent[d.name] += d.time;
-            }
+            const dt = (new Date() - parseTime(d.date)) / (1000 * 60 * 60 * 24); // days ago
+            const score = d.time_seconds > 0 ? (100 * (1 - Math.exp(-50 / d.time_seconds))) * Math.pow(0.99, dt) : 0;
+            playerScores[d.name] += score;
+            playerGames[d.name] += 1;
+            playerTimeSpent[d.name] += d.time_seconds;
         });
 
-        // Populate the table
+        // Populate the table including Rank 4 data
         const tbody = d3.select("#leaderboard tbody");
         Object.keys(playerScores).forEach(name => {
             const row = tbody.append("tr");
@@ -178,11 +176,11 @@
             row.append("td").text(playerRank1Finishes[name]);
             row.append("td").text(playerRank2Finishes[name]);
             row.append("td").text(playerRank3Finishes[name]);
+            row.append("td").text(playerRank4Finishes[name]); // Include Rank 4
             row.append("td").text(playerGames[name]);
-            row.append("td").text(playerTimeSpent[name] / playerGames[name]);
-            row.append("td").text(playerTimeSpent[name]);
+            row.append("td").text((playerTimeSpent[name] / playerGames[name]).toFixed(2));
+            row.append("td").text(playerTimeSpent[name].toFixed(2));
         });
-    });
     });
 </script>
 </body>
