@@ -68,7 +68,7 @@
         .x(function(d) { return x(d.date); })
         .y(function(d) { return y(d.time_seconds); }); // Use time in seconds for plotting
 
-    d3.csv("data/leaderboardstats.csv").then(function(data) {
+    d3.csv("http://localhost:8000/leaderboardstats.csv").then(function(data) {
         data.forEach(function(d) {
             d.date = parseTime(d.date);
             d.time_seconds = +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
@@ -105,18 +105,19 @@
             .data(names)
             .enter().append("g")
             .attr("class", "legend")
-            .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+            .attr("transform", function(d, i) { return "translate(0," + i * 15 + ")"; });
 
         // Draw legend colored rectangles
         legend.append("rect")
-            .attr("x", width + 28) // Adjust position according to your SVG dimensions
-            .attr("height", 18)
+            .attr("x", width + 24) // Adjust position according to your SVG dimensions
+            .attr('width', 18)
+            .attr("height", 10)
             .style("fill", color);
 
         // Draw legend text
         legend.append("text")
-            .attr("x", width + 24) // Adjust position according to your SVG dimensions
-            .attr("y", 9)
+            .attr("x", width + 20) // Adjust position according to your SVG dimensions
+            .attr("y", 5)
             .attr("dy", ".35em")
             .style("text-anchor", "end")
             .text(function(d) { return d; });
@@ -143,6 +144,9 @@
         const playerScores = {}, playerGames = {}, playerTimeSpent = {},
               playerRank1Finishes = {}, playerRank2Finishes = {}, 
               playerRank3Finishes = {}, playerRank4Finishes = {};
+        
+        const f0 = 50;
+        const f1 = 0.99;
 
         data.forEach(d => {
             if (!playerScores[d.name]) {
@@ -155,24 +159,31 @@
                 playerTimeSpent[d.name] = 0;
             }
 
-            if (d.rank === 1) playerRank1Finishes[d.name] += 1;
-            if (d.rank === 2) playerRank2Finishes[d.name] += 1;
-            if (d.rank === 3) playerRank3Finishes[d.name] += 1;
-            if (d.rank === 4) playerRank4Finishes[d.name] += 1; // Add Rank 4 data
+            if (d.rank === "1") playerRank1Finishes[d.name] += 1;
+            if (d.rank === "2") playerRank2Finishes[d.name] += 1;
+            if (d.rank === "3") playerRank3Finishes[d.name] += 1;
+            if (d.rank === "4") playerRank4Finishes[d.name] += 1; // Add Rank 4 data
 
-            const dt = (new Date() - parseTime(d.date)) / (1000 * 60 * 60 * 24); // days ago
-            const score = d.time_seconds > 0 ? (100 * (1 - Math.exp(-50 / d.time_seconds))) * Math.pow(0.99, dt) : 0;
-            playerScores[d.name] += score;
-            playerGames[d.name] += 1;
-            playerTimeSpent[d.name] += d.time_seconds;
+            const dt = (new Date() - new Date(d.date)) / (1000 * 60 * 60 * 24);
+            // console.log(parseTime(d.date));
+            if (d.time_seconds > 0) {
+                console.log("a", (100 * (1 - Math.exp(-f0 / d.time_seconds))));
+                console.log(dt);
+                const score = (100 * (1 - Math.exp(-f0 / d.time_seconds))) * Math.pow(f1, dt);
+                console.log(score);
+                playerScores[d.name] += score;
+                playerGames[d.name] += 1;
+                playerTimeSpent[d.name] += d.time_seconds;
+            }
         });
+        console.log(playerRank1Finishes);
 
         // Populate the table including Rank 4 data
         const tbody = d3.select("#leaderboard tbody");
         Object.keys(playerScores).forEach(name => {
             const row = tbody.append("tr");
             row.append("td").text(name);
-            row.append("td").text(playerScores[name].toFixed(2));
+            row.append("td").text((playerScores[name]/ playerGames[name]).toFixed(2) );
             row.append("td").text(playerRank1Finishes[name]);
             row.append("td").text(playerRank2Finishes[name]);
             row.append("td").text(playerRank3Finishes[name]);
