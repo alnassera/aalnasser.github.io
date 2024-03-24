@@ -59,7 +59,7 @@
         height = +svg.attr("height") - margin.top - margin.bottom,
         g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-    const parseTime = d3.timeParse("%m/%d/%Y");
+    const parseTime = d3.timeParse("%Y-%m-%d");
 
     const x = d3.scaleTime().rangeRound([0, width]);
     const y = d3.scaleLinear().rangeRound([height, 0]);
