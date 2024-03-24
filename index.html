@@ -68,7 +68,7 @@
         .x(function(d) { return x(d.date); })
         .y(function(d) { return y(d.time_seconds); }); // Use time in seconds for plotting
 
-    d3.csv("http://localhost:8000/leaderboardstats.csv").then(function(data) {
+    d3.csv("data/leaderboardstats.csv").then(function(data) {
         data.forEach(function(d) {
             d.date = parseTime(d.date);
             d.time_seconds = +d.time.split(":").reduce((acc, time) => (60 * acc) + +time);
